@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>2048</title>
+  <style>
+    :root {
+      --bg-card: #ffffff;
+      --grid-bg: #fce4ec;
+      --cell-empty: rgba(255, 255, 255, 0.65);
+      --text: #5c3d4a;
+      --text-muted: #9e7a88;
+      --accent-deep: #c2186b;
+      --shadow: 0 8px 28px rgba(194, 24, 107, 0.12);
+      --radius: 12px;
+      --tile-radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100dvh;
+      font-family: "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+      background: linear-gradient(165deg, #ffffff 0%, #fff0f5 35%, #fce4ec 70%, #f8bbd0 100%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+    }
+
+    .bg-flowers {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .bg-flowers-svg {
+      width: 100%;
+      height: 100%;
+      min-height: 100dvh;
+      display: block;
+      animation: bg-breathe 10s ease-in-out infinite;
+    }
+
+    @keyframes bg-breathe {
+      0%, 100% { opacity: 0.88; }
+      50% { opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bg-flowers-svg {
+        animation: none;
+        opacity: 0.92;
+      }
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .brand h1 {
+      font-size: clamp(2.5rem, 10vw, 3.25rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      background: linear-gradient(135deg, #e91e8c 0%, #f48fb1 45%, #c2186b 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      line-height: 1;
+    }
+
+    .brand p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .scores {
+      display: flex;
+      gap: 10px;
+    }
+
+    .score-box {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 10px 18px;
+      text-align: center;
+      min-width: 88px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(233, 30, 140, 0.12);
+    }
+
+    .score-box span:first-child {
+      display: block;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .score-box .value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .btn-new {
+      appearance: none;
+      border: none;
+      background: linear-gradient(135deg, #f48fb1 0%, var(--accent-deep) 100%);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 700;
+      padding: 12px 22px;
+      border-radius: 999px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(194, 24, 107, 0.28);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      font-family: inherit;
+    }
+
+    .btn-new:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(194, 24, 107, 0.38);
+    }
+
+    .btn-new:active {
+      transform: translateY(0);
+    }
+
+    .board-wrap {
+      position: relative;
+      background: var(--grid-bg);
+      border-radius: calc(var(--radius) + 4px);
+      padding: 10px;
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(244, 143, 177, 0.35);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      aspect-ratio: 1;
+    }
+
+    .cell {
+      background: var(--cell-empty);
+      border-radius: var(--tile-radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: clamp(1.1rem, 5.5vw, 1.65rem);
+      transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cell:not(.empty) {
+      box-shadow: 0 2px 10px rgba(194, 24, 107, 0.15);
+    }
+
+    /* タイルの色（値ごと・ピンク系） */
+    .cell.v2 { background: #fff8fb; color: #8d6a75; border: 1px solid rgba(248, 187, 208, 0.5); }
+    .cell.v4 { background: #fce4ec; color: #7a5a65; }
+    .cell.v8 { background: #f8bbd0; color: #5c3d4a; }
+    .cell.v16 { background: #f48fb1; color: #fff; }
+    .cell.v32 { background: #f06292; color: #fff; }
+    .cell.v64 { background: #ec407a; color: #fff; }
+    .cell.v128 { background: #e91e63; color: #fff; font-size: clamp(1rem, 5vw, 1.45rem); }
+    .cell.v256 { background: #d81b60; color: #fff; font-size: clamp(1rem, 5vw, 1.45rem); }
+    .cell.v512 { background: #c2185b; color: #fff; font-size: clamp(1rem, 5vw, 1.45rem); }
+    .cell.v1024 { background: #ad1457; color: #fff; font-size: clamp(0.85rem, 4.2vw, 1.25rem); }
+    .cell.v2048 { background: #880e4f; color: #fff; font-size: clamp(0.85rem, 4.2vw, 1.25rem); box-shadow: 0 0 18px rgba(233, 30, 99, 0.45); }
+    .cell.v4096,
+    .cell.v8192,
+    .cell.v16384,
+    .cell.v32768,
+    .cell.v65536 { background: #4a1942; color: #fff; font-size: clamp(0.75rem, 3.8vw, 1.1rem); }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 250, 252, 0.92);
+      border-radius: calc(var(--radius) + 4px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      backdrop-filter: blur(4px);
+    }
+
+    .overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .overlay h2 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--accent-deep);
+    }
+
+    .overlay p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-flowers" aria-hidden="true">
+    <svg class="bg-flowers-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <g id="flower-sakura">
+          <g fill="#fffafc">
+            <ellipse cx="0" cy="-4.2" rx="3.8" ry="5.2" opacity="0.92"/>
+            <ellipse cx="0" cy="-4.2" rx="3.8" ry="5.2" opacity="0.92" transform="rotate(72)"/>
+            <ellipse cx="0" cy="-4.2" rx="3.8" ry="5.2" opacity="0.92" transform="rotate(144)"/>
+            <ellipse cx="0" cy="-4.2" rx="3.8" ry="5.2" opacity="0.92" transform="rotate(216)"/>
+            <ellipse cx="0" cy="-4.2" rx="3.8" ry="5.2" opacity="0.92" transform="rotate(288)"/>
+          </g>
+          <circle cx="0" cy="0" r="1.5" fill="#f8bbd0" opacity="0.95"/>
+        </g>
+        <g id="flower-pink">
+          <g fill="#fce4ec">
+            <ellipse cx="0" cy="-3.6" rx="3.2" ry="4.6" opacity="0.9"/>
+            <ellipse cx="0" cy="-3.6" rx="3.2" ry="4.6" opacity="0.9" transform="rotate(72)"/>
+            <ellipse cx="0" cy="-3.6" rx="3.2" ry="4.6" opacity="0.9" transform="rotate(144)"/>
+            <ellipse cx="0" cy="-3.6" rx="3.2" ry="4.6" opacity="0.9" transform="rotate(216)"/>
+            <ellipse cx="0" cy="-3.6" rx="3.2" ry="4.6" opacity="0.9" transform="rotate(288)"/>
+          </g>
+          <circle cx="0" cy="0" r="1.3" fill="#f48fb1" opacity="0.92"/>
+        </g>
+        <ellipse id="petal" rx="1.8" ry="2.6" fill="#fce4ec" opacity="0.55"/>
+      </defs>
+      <use href="#flower-sakura" transform="translate(8,12) scale(0.72) rotate(12)"/>
+      <use href="#flower-pink" transform="translate(91,16) scale(0.58) rotate(-22)"/>
+      <use href="#flower-sakura" transform="translate(48,10) scale(0.48) rotate(8)"/>
+      <use href="#flower-pink" transform="translate(22,36) scale(0.62) rotate(38)"/>
+      <use href="#flower-sakura" transform="translate(78,40) scale(0.68) rotate(-14)"/>
+      <use href="#flower-pink" transform="translate(6,48) scale(0.52) rotate(-6)"/>
+      <use href="#flower-sakura" transform="translate(94,52) scale(0.5) rotate(28)"/>
+      <use href="#flower-pink" transform="translate(52,50) scale(0.78) rotate(4)"/>
+      <use href="#flower-sakura" transform="translate(32,68) scale(0.6) rotate(-18)"/>
+      <use href="#flower-pink" transform="translate(72,74) scale(0.64) rotate(33)"/>
+      <use href="#flower-sakura" transform="translate(88,90) scale(0.54) rotate(-9)"/>
+      <use href="#flower-pink" transform="translate(14,90) scale(0.46) rotate(15)"/>
+      <use href="#flower-sakura" transform="translate(40,88) scale(0.42) rotate(-28)"/>
+      <use href="#flower-pink" transform="translate(58,28) scale(0.38) rotate(55)"/>
+      <use href="#flower-sakura" transform="translate(66,58) scale(0.44) rotate(-40)"/>
+      <use href="#flower-pink" transform="translate(36,52) scale(0.34) rotate(20)"/>
+      <use href="#petal" transform="translate(18,22) rotate(35)"/>
+      <use href="#petal" transform="translate(84,30) rotate(-20)"/>
+      <use href="#petal" transform="translate(55,66) rotate(50)"/>
+      <use href="#petal" transform="translate(8,78) rotate(-45)"/>
+      <use href="#petal" transform="translate(96,72) rotate(12)"/>
+      <use href="#petal" transform="translate(28,58) rotate(80)"/>
+      <use href="#petal" transform="translate(70,18) rotate(-60)"/>
+    </svg>
+  </div>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <h1>2048</h1>
+        <p>同じ数字をくっつけて 2048 を目指そう</p>
+      </div>
+      <div class="scores">
+        <div class="score-box">
+          <span>スコア</span>
+          <span class="value" id="score">0</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <p class="hint">PC：矢印キー／スマホ：スワイプで移動</p>
+      <button type="button" class="btn-new" id="newGame">新しいゲーム</button>
+    </div>
+
+    <div class="board-wrap" id="boardWrap">
+      <div class="grid" id="grid" role="grid" aria-label="2048 ボード"></div>
+      <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="goTitle">
+        <h2 id="goTitle">ゲームオーバー</h2>
+        <p>これ以上動かせません。もう一度挑戦しましょう。</p>
+        <button type="button" class="btn-new" id="overlayRestart">もう一度プレイ</button>
+      </div>
+    </div>
+
+    <footer>2048 — 単一HTMLファイル版</footer>
+  </div>
+
+  <script>
+    (function () {
+      const SIZE = 4;
+      let grid = [];
+      let score = 0;
+      let gameOver = false;
+
+      const gridEl = document.getElementById('grid');
+      const boardWrap = document.getElementById('boardWrap');
+      const scoreEl = document.getElementById('score');
+      const overlay = document.getElementById('overlay');
+      const newGameBtn = document.getElementById('newGame');
+      const overlayRestart = document.getElementById('overlayRestart');
+
+      function emptyGrid() {
+        return Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+      }
+
+      function slideRow(row) {
+        const nums = row.filter((n) => n !== 0);
+        const out = [];
+        let i = 0;
+        while (i < nums.length) {
+          if (i < nums.length - 1 && nums[i] === nums[i + 1]) {
+            const merged = nums[i] * 2;
+            out.push(merged);
+            score += merged;
+            i += 2;
+          } else {
+            out.push(nums[i]);
+            i++;
+          }
+        }
+        while (out.length < SIZE) out.push(0);
+        return out;
+      }
+
+      function clone(g) {
+        return g.map((r) => r.slice());
+      }
+
+      function gridsEqual(a, b) {
+        for (let r = 0; r < SIZE; r++) {
+          for (let c = 0; c < SIZE; c++) {
+            if (a[r][c] !== b[r][c]) return false;
+          }
+        }
+        return true;
+      }
+
+      function transpose(g) {
+        const t = emptyGrid();
+        for (let r = 0; r < SIZE; r++) {
+          for (let c = 0; c < SIZE; c++) {
+            t[c][r] = g[r][c];
+          }
+        }
+        return t;
+      }
+
+      function moveLeft(g) {
+        return g.map((row) => slideRow(row));
+      }
+
+      function moveRight(g) {
+        return g.map((row) => slideRow(row.slice().reverse()).reverse());
+      }
+
+      function moveUp(g) {
+        return transpose(moveLeft(transpose(g)));
+      }
+
+      function moveDown(g) {
+        return transpose(moveRight(transpose(g)));
+      }
+
+      function tryMove(dir) {
+        if (gameOver) return;
+        const before = clone(grid);
+        let next;
+        switch (dir) {
+          case 'left':
+            next = moveLeft(grid);
+            break;
+          case 'right':
+            next = moveRight(grid);
+            break;
+          case 'up':
+            next = moveUp(grid);
+            break;
+          case 'down':
+            next = moveDown(grid);
+            break;
+          default:
+            return;
+        }
+        if (gridsEqual(before, next)) return;
+        grid = next;
+        scoreEl.textContent = score;
+        addRandomTile();
+        render();
+        if (!canMove()) {
+          gameOver = true;
+          overlay.classList.add('visible');
+        }
+      }
+
+      function canMove() {
+        for (let r = 0; r < SIZE; r++) {
+          for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] === 0) return true;
+          }
+        }
+        for (let r = 0; r < SIZE; r++) {
+          for (let c = 0; c < SIZE - 1; c++) {
+            if (grid[r][c] === grid[r][c + 1]) return true;
+          }
+        }
+        for (let r = 0; r < SIZE - 1; r++) {
+          for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] === grid[r + 1][c]) return true;
+          }
+        }
+        return false;
+      }
+
+      function addRandomTile() {
+        const empty = [];
+        for (let r = 0; r < SIZE; r++) {
+          for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] === 0) empty.push([r, c]);
+          }
+        }
+        if (empty.length === 0) return;
+        const pick = empty[Math.floor(Math.random() * empty.length)];
+        grid[pick[0]][pick[1]] = Math.random() < 0.9 ? 2 : 4;
+      }
+
+      function cellClass(val) {
+        if (val === 0) return 'cell empty';
+        const v = Math.min(val, 65536);
+        return 'cell v' + v;
+      }
+
+      function render() {
+        gridEl.innerHTML = '';
+        for (let r = 0; r < SIZE; r++) {
+          for (let c = 0; c < SIZE; c++) {
+            const v = grid[r][c];
+            const div = document.createElement('div');
+            div.className = cellClass(v);
+            div.setAttribute('role', 'gridcell');
+            if (v !== 0) div.textContent = v;
+            gridEl.appendChild(div);
+          }
+        }
+      }
+
+      function initGame() {
+        grid = emptyGrid();
+        score = 0;
+        gameOver = false;
+        scoreEl.textContent = '0';
+        overlay.classList.remove('visible');
+        addRandomTile();
+        addRandomTile();
+        render();
+      }
+
+      document.addEventListener('keydown', (e) => {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.preventDefault();
+        }
+        const map = {
+          ArrowLeft: 'left',
+          ArrowRight: 'right',
+          ArrowUp: 'up',
+          ArrowDown: 'down',
+        };
+        if (map[e.key]) tryMove(map[e.key]);
+      });
+
+      let touchStartX = 0;
+      let touchStartY = 0;
+      const SWIPE_MIN = 40;
+
+      boardWrap.addEventListener(
+        'touchstart',
+        (e) => {
+          if (e.touches.length !== 1) return;
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+        },
+        { passive: true }
+      );
+
+      boardWrap.addEventListener(
+        'touchend',
+        (e) => {
+          if (!e.changedTouches.length) return;
+          const dx = e.changedTouches[0].clientX - touchStartX;
+          const dy = e.changedTouches[0].clientY - touchStartY;
+          if (Math.abs(dx) < SWIPE_MIN && Math.abs(dy) < SWIPE_MIN) return;
+          if (Math.abs(dx) > Math.abs(dy)) {
+            tryMove(dx > 0 ? 'right' : 'left');
+          } else {
+            tryMove(dy > 0 ? 'down' : 'up');
+          }
+        },
+        { passive: true }
+      );
+
+      newGameBtn.addEventListener('click', initGame);
+      overlayRestart.addEventListener('click', initGame);
+
+      initGame();
+    })();
+  </script>
+</body>
+</html>
